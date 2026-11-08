@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lightbox Tracing App</title>
+    <style>
+        * {
+            box-style: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        /* Main Container */
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* The Tracing Image */
+        #trace-image {
+            position: absolute;
+            max-width: 90%;
+            max-height: 90%;
+            transform: translate(0px, 0px) scale(1);
+            transform-origin: center center;
+            transition: opacity 0.1s ease;
+            pointer-events: auto;
+            display: none;
+        }
+        /* Control Panel Menu */
+        #control-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 1px rgba(255,255,255,0.1) solid;
+            color: white;
+            min-width: 280px;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn-lock { background: #dc3545; width: 100%; padding: 12px; font-size: 16px;}
+        .btn-lock:hover { background: #bd2130; }
+        
+        /* The Invisible Shield that blocks all interaction when locked */
+        #lock-shield {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0);
+            z-index: 9998;
+            display: none;
+            touch-action: none;
+        }
+        /* Hidden Unlock Button overlay */
+        #unlock-trigger {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 9999;
+            display: none;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(5px);
+            color: rgba(255,255,255,0.7);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #unlock-trigger:active {
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+        }
+        #file-input { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- Image Item -->
+    <img id="trace-image" src="" alt="Tracing Reference" draggable="false">
+
+    <!-- Control Panel -->
+    <div id="control-panel">
+        <button class="btn" onclick="document.getElementById('file-input').click()">📁 Load Image</button>
+        <input type="file" id="file-input" accept="image/*">
+        
+        <div class="control-row">
+            <label>Opacity</label>
+            <input type="range" id="opacity-slider" min="0.1" max="1" step="0.05" value="1">
+        </div>
+
+        <div class="control-row">
+            <button class="btn" id="btn-zoom-in">➕</button>
+            <span>Zoom / Move</span>
+            <button class="btn" id="btn-zoom-out">➖</button>
+        </div>
+        
+        <button class="btn btn-lock" id="btn-lock">🔒 Lock Screen & Trace</button>
+    </div>
+
+    <!-- Security Shields -->
+    <div id="lock-shield"></div>
+    <button id="unlock-trigger">Tap to Unlock</button>
+</div>
+
+<script>
+    const fileInput = document.getElementById('file-input');
+    const img = document.getElementById('trace-image');
+    const opacitySlider = document.getElementById('opacity-slider');
+    const controlPanel = document.getElementById('control-panel');
+    const lockShield = document.getElementById('lock-shield');
+    const unlockTrigger = document.getElementById('unlock-trigger');
+    const btnLock = document.getElementById('btn-lock');
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+
+    let scale = 1;
+    let pointX = 0;
+    let pointY = 0;
+    let startX = 0;
+    let startY = 0;
+    let isPanning = false;
+
+    // 1. Handle Image Upload
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                img.src = event.target.result;
+                img.style.display = 'block';
+                // Reset positions
+                scale = 1; pointX = 0; pointY = 0;
+                updateTransform();
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 2. Opacity Control
+    opacitySlider.addEventListener('input', (e) => {
+        img.style.opacity = e.target.value;
+    });
+
+    // 3. Zoom Controls
+    function updateTransform() {
+        img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+    }
+
+    btnZoomIn.addEventListener('click', () => { scale += 0.15; updateTransform(); });
+    btnZoomOut.addEventListener('click', () => { if(scale > 0.2) scale -= 0.15; updateTransform(); });
+
+    // 4. Drag & Pan Image Logic
+    img.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startX = e.clientX - pointX;
+        startY = e.clientY - pointY;
+        isPanning = true;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        pointX = e.clientX - startX;
+        pointY = e.clientY - startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => { isPanning = false; });
+
+    // Touch Support for Mobile/Tablets
+    img.addEventListener('touchstart', (e) => {
+        if(e.touches.length === 1) {
+            isPanning = true;
+            startX = e.touches[0].clientX - pointX;
+            startY = e.touches[0].clientY - pointY;
+        }
+    });
+
+    img.addEventListener('touchmove', (e) => {
+        if (!isPanning || e.touches.length !== 1) return;
+        pointX = e.touches[0].clientX - startX;
+        pointY = e.touches[0].clientY - startY;
+        updateTransform();
+    });
+
+    img.addEventListener('touchend', () => { isPanning = false; });
+
+    // 5. Locking Engine Logic
+    btnLock.addEventListener('click', () => {
+        // Enter full screen mode if supported
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+        }
+
+        // Hide menus, deploy absolute structural shield
+        controlPanel.style.display = 'none';
+        lockShield.style.display = 'block';
+        unlockTrigger.style.display = 'block';
+        img.style.pointerEvents = 'none'; // stops browser image drag glitches
+    });
+
+    // Unlock Procedure
+    unlockTrigger.addEventListener('click', () => {
+        // Exit full screen
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+
+        // Restore layout
+        controlPanel.style.display = 'flex';
+        lockShield.style.display = 'none';
+        unlockTrigger.style.display = 'none';
+        img.style.pointerEvents = 'auto';
+    });
+</script>
+
+</body>
+</html>
