@@ -8,7 +8,7 @@
         /* Modern CSS Reset & Variable Tokens */
         :root {
             --bg-base: #0a0a0c;
-            --panel-bg: rgba(18, 18, 24, 0.75);
+            --panel-bg: rgba(18, 18, 24, 0.8);
             --panel-border: rgba(255, 255, 255, 0.08);
             --accent-primary: #3b82f6;
             --accent-hover: #2563eb;
@@ -57,12 +57,13 @@
             position: absolute;
             max-width: 92%;
             max-height: 92%;
-            transform: translate(0px, 0px) scale(1);
+            /* Combined translate, scale, and mirror factors */
+            transform: translate(0px, 0px) scale(1) scaleX(1) scaleY(1);
             transform-origin: center center;
-            will-change: transform;
+            will-change: transform, filter;
             cursor: grab;
             display: none;
-            filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.8));
+            filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.8)) opacity(1) brightness(1) contrast(1);
         }
         #trace-image:active {
             cursor: grabbing;
@@ -81,12 +82,14 @@
             border-radius: var(--radius-lg);
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
             z-index: 10;
             box-shadow: var(--shadow-glow);
             border: 1px solid var(--panel-border);
-            width: 90%;
-            max-width: 360px;
+            width: 92%;
+            max-width: 380px;
+            max-height: 85vh;
+            overflow-y: auto;
             animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -95,26 +98,32 @@
             to { transform: translate(-50%, 0); opacity: 1; }
         }
 
-        /* UI Rows & Labels */
+        /* Grid Layouts & Utility Rows */
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
         .control-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 14px;
+            gap: 10px;
         }
 
         .control-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
             width: 100%;
         }
 
         label {
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 11px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
             color: var(--text-muted);
         }
 
@@ -131,8 +140,8 @@
 
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
             background: var(--accent-primary);
             cursor: pointer;
@@ -140,15 +149,15 @@
             transition: transform 0.1s;
         }
         input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.15);
+            transform: scale(1.2);
         }
 
-        /* Premium Buttons layout */
+        /* Premium Interface Buttons */
         .btn {
             background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 10px 16px;
+            padding: 10px 14px;
             border-radius: var(--radius-md);
             cursor: pointer;
             font-weight: 600;
@@ -156,17 +165,19 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s ease;
         }
         .btn:hover {
             background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.18);
         }
 
         .btn-primary {
             background: var(--accent-primary);
             border: none;
+            width: 100%;
+            padding: 12px;
         }
         .btn-primary:hover {
             background: var(--accent-hover);
@@ -174,10 +185,16 @@
         }
 
         .btn-square {
-            width: 42px;
-            height: 42px;
+            flex: 1;
+            height: 38px;
             padding: 0;
-            font-size: 16px;
+            font-size: 14px;
+        }
+        
+        .btn-active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: var(--accent-primary);
+            color: #60a5fa;
         }
 
         .btn-lock {
@@ -185,8 +202,9 @@
             border: none;
             width: 100%;
             padding: 14px;
-            font-size: 14px;
-            letter-spacing: 0.02em;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
             margin-top: 4px;
         }
@@ -199,7 +217,7 @@
             font-size: 12px;
             font-weight: 700;
             color: var(--text-muted);
-            min-width: 40px;
+            min-width: 45px;
             text-align: center;
         }
 
@@ -257,58 +275,34 @@
         <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📁 Load Trace Image</button>
         <input type="file" id="file-input" accept="image/*">
         
-        <div class="control-group">
-            <label for="opacity-slider">Layer Opacity</label>
-            <input type="range" id="opacity-slider" min="0.05" max="1" step="0.05" value="1">
-        </div>
-
-        <div class="control-group">
-            <label>Scale Matrix</label>
-            <div class="control-row">
-                <button class="btn btn-square" id="btn-zoom-out">▼</button>
-                <div class="zoom-display" id="zoom-readout">100%</div>
-                <button class="btn btn-square" id="btn-zoom-in">▲</button>
+        <!-- Filters Block -->
+        <div class="control-grid">
+            <div class="control-group">
+                <label for="opacity-slider">Opacity</label>
+                <input type="range" id="opacity-slider" min="0.05" max="1" step="0.05" value="1">
+            </div>
+            <div class="control-group">
+                <label for="brightness-slider">Brightness</label>
+                <input type="range" id="brightness-slider" min="0.2" max="3" step="0.1" value="1">
             </div>
         </div>
-        
-        <button class="btn btn-lock" id="btn-lock">🔒 Deploy Lock Matrix</button>
-    </div>
 
-    <!-- Defense Shields -->
-    <div id="lock-shield"></div>
-    <button id="unlock-trigger">Hold to Unlock</button>
-</div>
+        <div class="control-group">
+            <label for="contrast-slider">Line Contrast</label>
+            <input type="range" id="contrast-slider" min="0.2" max="4" step="0.1" value="1">
+        </div>
 
-<script>
-    const fileInput = document.getElementById('file-input');
-    const img = document.getElementById('trace-image');
-    const opacitySlider = document.getElementById('opacity-slider');
-    const controlPanel = document.getElementById('control-panel');
-    const lockShield = document.getElementById('lock-shield');
-    const unlockTrigger = document.getElementById('unlock-trigger');
-    const btnLock = document.getElementById('btn-lock');
-    const btnZoomIn = document.getElementById('btn-zoom-in');
-    const btnZoomOut = document.getElementById('btn-zoom-out');
-    const zoomReadout = document.getElementById('zoom-readout');
-
-    let scale = 1;
-    let pointX = 0;
-    let pointY = 0;
-    let startX = 0;
-    let startY = 0;
-    let isPanning = false;
-
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                img.src = event.target.result;
-                img.style.display = 'block';
-                scale = 1; pointX = 0; pointY = 0;
-                updateTransform();
-            }
-            reader.readAsDataURL(file);
-        }
-    });
-
+        <!-- Scale & Geometry Tools -->
+        <div class="control-grid">
+            <div class="control-group">
+                <label>Scale Matrix</label>
+                <div class="control-row">
+                    <button class="btn btn-square" id="btn-zoom-out">▼</button>
+                    <div class="zoom-display" id="zoom-readout">100%</div>
+                    <button class="btn btn-square" id="btn-zoom-in">▲</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Mirror Inversion</label>
+                <div class="control-row">
+                    <button class="btn btn-square" id="btn-flip-h" title="Flip Horizontal">↔</button>
